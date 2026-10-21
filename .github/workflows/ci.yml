@@ -22,5 +22,8 @@ jobs:
           java-version: '17'
           cache: 'sbt'
 
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
       - name: Run MUnit Tests
         run: sbt test
