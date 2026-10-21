@@ -17,12 +17,28 @@ object UserRoutes:
       }
     }
 
+    val listUsersRoute = UserEndpoints.listUsersEndpoint.serverLogic { _ =>
+      repo.listAll().map(Right(_))
+    }
+
     val createUserRoute = UserEndpoints.createUserEndpoint.serverLogic { req =>
       repo.create(req).map(Right(_))
     }
 
     val swaggerRoutes = Http4sServerInterpreter[IO]().toRoutes(
-      SwaggerInterpreter().fromEndpoints(List(UserEndpoints.getUserEndpoint, UserEndpoints.createUserEndpoint), "User API", "1.0.0")
+      SwaggerInterpreter().fromEndpoints(
+        List(
+          UserEndpoints.getUserEndpoint,
+          UserEndpoints.listUsersEndpoint,
+          UserEndpoints.createUserEndpoint),
+        "User API",
+        "1.0.0"
+      )
     )
 
-    Http4sServerInterpreter[IO]().toRoutes(List(getUserRoute, createUserRoute)) <+> swaggerRoutes
+    Http4sServerInterpreter[IO]().toRoutes(
+      List(
+        getUserRoute, 
+        listUsersRoute, 
+        createUserRoute)
+    ) <+> swaggerRoutes

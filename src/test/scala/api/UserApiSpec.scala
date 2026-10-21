@@ -27,7 +27,6 @@ class UserApiSpec extends CatsEffectSuite:
       request = Request[IO](Method.GET, uri"/api/users/1")
       response <- routes.orNotFound.run(request)
 
-      // Assertions
       _ = assertEquals(response.status, Status.Ok)
       body <- response.as[User]
       _ = assertEquals(body.username, "alice_admin")
@@ -52,6 +51,45 @@ class UserApiSpec extends CatsEffectSuite:
       response <- routes.orNotFound.run(request)
 
       _ = assertEquals(response.status, Status.BadRequest)
+    yield ()
+  }
+
+  test("GET /api/users should return users as a list") {
+    for
+      routes <- testRoutes
+      request = Request[IO](Method.GET, uri"/api/users")
+      response <- routes.orNotFound.run(request)
+
+      _ = assertEquals(response.status, Status.Ok)
+      users <- response.as[List[User]]
+
+      _ = assert(users.nonEmpty)
+      _ = assertEquals(users.size, 1)
+      _ = assertEquals(users.head.username, "alice_admin")
+    yield ()
+  }
+
+  test("GET /api/users should return all users when there is a longer list") {
+    val expectedUsers = List(
+      User(1L, "alice_admin", "ADMIN"),
+      User(2L, "bob_tester", "QA"),
+      User(3L, "charlie_dev", "DEVELOPER"),
+      User(4L, "david_pm", "PRODUCT"),
+      User(5L, "eva_designer", "DESIGN")
+    )
+    val stateMap = expectedUsers.map(u => u.id -> u).toMap
+    for
+      initialState <- Ref.of[IO, (Long, Map[Long, User])]((6L, stateMap))
+      repo = UserRepo(initialState)
+      routes = UserRoutes.make(repo)
+      request = Request[IO](Method.GET, uri"/api/users")
+      response <- routes.orNotFound.run(request)
+
+      _ = assertEquals(response.status, Status.Ok)
+      users <- response.as[List[User]]
+
+      _ = assertEquals(users.length, expectedUsers.length)
+      _ = assertEquals(users.sortBy(_.id), expectedUsers)
     yield ()
   }
 
