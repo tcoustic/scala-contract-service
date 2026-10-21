@@ -6,6 +6,7 @@ import domain.{CreateUserRequest, ErrorMsg, User}
 import sttp.tapir.*
 import sttp.tapir.json.circe.*
 import io.circe.generic.auto.*
+import sttp.model.StatusCode
 import sttp.tapir.generic.auto.*
 
 object UserEndpoints:
@@ -13,7 +14,7 @@ object UserEndpoints:
     .get
     .in("api" / "users" / path[Long]("id"))
     .out(jsonBody[User])
-    .errorOut(jsonBody[ErrorMsg])
+    .errorOut(statusCode(StatusCode.NotFound).and(jsonBody[ErrorMsg]))
     .description("Find user by ID")
 
   val createUserEndpoint: PublicEndpoint[CreateUserRequest, Unit, User, Any] = endpoint
