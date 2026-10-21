@@ -1,0 +1,21 @@
+# --- Scala & SBT Caches ---
+target/
+project/target/
+project/project/
+.bsp/
+.metals/
+.bloop/
+.cache/
+
+# --- IntelliJ IDEA ---
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# --- Operating System ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
