@@ -12,6 +12,11 @@ class UserRepo(state: Ref[IO, (Long, Map[Long, User])]):
       users.get(id)
     }
 
+  def listAll(): IO[List[User]] =
+    state.get.map { case (_, users) =>
+      users.values.toList
+    }
+
   def create(req: CreateUserRequest): IO[User] =
     state.modify { case (nextId, users) =>
       val newUser = User(nextId, req.username, req.role)

@@ -55,6 +55,21 @@ class UserApiSpec extends CatsEffectSuite:
     yield ()
   }
 
+  test("GET /api/users should return a list of all users") {
+    for
+      routes <- testRoutes
+      request = Request[IO](Method.GET, uri"/api/users")
+      response <- routes.orNotFound.run(request)
+
+      _ = assertEquals(response.status, Status.Ok)
+      users <- response.as[List[User]]
+
+      // We pre-seeded alice_admin in our test fixture
+      _ = assert(users.nonEmpty)
+      _ = assertEquals(users.head.username, "alice_admin")
+    yield ()
+  }
+
   test("POST /api/users should auto-generate an ID and return the created user") {
     for
       routes <- testRoutes

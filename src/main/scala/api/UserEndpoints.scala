@@ -23,3 +23,9 @@ object UserEndpoints:
     .in(jsonBody[CreateUserRequest])
     .out(jsonBody[User])
     .description("Create a new user")
+
+  val listUsersEndpoint: PublicEndpoint[Unit, Unit, List[User], Any] =
+    endpoint.get
+      .in("api" / "users")
+      .out(jsonBody[List[User]])
+      .description("List all users")
