@@ -27,9 +27,12 @@ class UserRepo(state: Ref[IO, (Long, Map[Long, User])]):
       users.get(id)
     }
 
-  def listAll(): IO[List[User]] =
+  def listAll(isActive: Option[Boolean], role: Option[String], take: Int, skip: Int): IO[List[User]] =
     state.get.map { case (_, users) =>
       users.values.toList
+        .filter(user => isActive.forall(_ == user.isActive) && role.forall(_ == user.role))
+        .filter(user => role.forall(_ == user.role))
+        .slice(skip, skip + take)
     }
 
   def create(req: CreateUserRequest): IO[User] =

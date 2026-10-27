@@ -7,4 +7,3 @@ case class User(
                  role: String,
                  isActive: Boolean = true)
 case class CreateUserRequest(username: String, role: String)
-case class ErrorMsg(error: String)
