@@ -17,7 +17,10 @@ class UserApiSpec extends CatsEffectSuite:
 
   private def testRoutes: IO[HttpRoutes[IO]] =
     for
-      initialState <- Ref.of[IO, (Long, Map[Long, User])]((2L, Map(1L -> User(1L, "alice_admin", "ADMIN"))))
+      initialState <- Ref.of[IO, (Long, Map[Long, User])]((3L, Map(
+        1L -> User(1L, "alice_admin", "ADMIN"),
+        2L -> User(2L, "bob_tester", "QA", isActive = false)
+      )))
       repo = UserRepo(initialState)
     yield UserRoutes.make(repo)
 
@@ -64,7 +67,7 @@ class UserApiSpec extends CatsEffectSuite:
       users <- response.as[List[User]]
 
       _ = assert(users.nonEmpty)
-      _ = assertEquals(users.size, 1)
+      _ = assertEquals(users.size, 2)
       _ = assertEquals(users.head.username, "alice_admin")
     yield ()
   }
@@ -96,7 +99,7 @@ class UserApiSpec extends CatsEffectSuite:
   test("POST /api/users should auto-generate an ID and return the created user") {
     for
       routes <- testRoutes
-      createReq = CreateUserRequest("bob_tester", "QA")
+      createReq = CreateUserRequest("charlie_dev", "DEVELOPER")
       request = Request[IO](Method.POST, uri"/api/users")
         .withEntity(createReq.asJson)
 
@@ -105,8 +108,57 @@ class UserApiSpec extends CatsEffectSuite:
       _ = assertEquals(response.status, Status.Ok)
       createdUser <- response.as[User]
 
-      _ = assertEquals(createdUser.id, 2L)
-      _ = assertEquals(createdUser.username, "bob_tester")
-      _ = assertEquals(createdUser.role, "QA")
+      _ = assertEquals(createdUser.id, 3L)
+      _ = assertEquals(createdUser.username, "charlie_dev")
+      _ = assertEquals(createdUser.role, "DEVELOPER")
     yield ()
+  }
+
+  case class LifecycleTestCase(
+    name: String,
+    path: String,
+    expectedStatus: Status
+  )
+
+  val lifecycleTestCases: Seq[LifecycleTestCase] = List(
+    LifecycleTestCase(
+      name = "POST to /activate successfully activates inactive user (ID 2)",
+      path = "/api/users/2/activate",
+      expectedStatus = Status.Ok
+    ),
+    LifecycleTestCase(
+      name = "POST to /deactivate successfully deactivates active user (ID 1)",
+      path = "/api/users/1/deactivate",
+      expectedStatus = Status.Ok
+    ),
+    LifecycleTestCase(
+      name = "POST to /activate fails to activate already active user (ID 1)",
+      path = "/api/users/1/activate",
+      expectedStatus = Status.UnprocessableContent
+    ),
+    LifecycleTestCase(
+      name = "POST to /deactivate fails to deactivate already inactive user (ID 2)",
+      path = "/api/users/2/deactivate",
+      expectedStatus = Status.UnprocessableContent
+    ),
+    LifecycleTestCase(
+      name = "POST to /activate fails to activate non-existent user (ID 999)",
+      path = "/api/users/999/activate",
+      expectedStatus = Status.NotFound
+    ),
+    LifecycleTestCase(
+      name = "POST to /deactivate fails to deactivate non-existent user (ID 999)",
+      path = "/api/users/999/deactivate",
+      expectedStatus = Status.NotFound
+    )
+  )
+
+  lifecycleTestCases.foreach { tc =>
+    test(tc.name):
+      for
+        routes <- testRoutes
+        req = Request[IO](Method.POST, Uri.unsafeFromString(tc.path))
+        resp <- routes.orNotFound.run(req)
+        _ <- IO(assertEquals(resp.status, tc.expectedStatus))
+      yield ()
   }
