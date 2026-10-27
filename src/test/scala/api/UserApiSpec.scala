@@ -17,9 +17,11 @@ class UserApiSpec extends CatsEffectSuite:
 
   private def testRoutes: IO[HttpRoutes[IO]] =
     for
-      initialState <- Ref.of[IO, (Long, Map[Long, User])]((3L, Map(
+      initialState <- Ref.of[IO, (Long, Map[Long, User])]((5L, Map(
         1L -> User(1L, "alice_admin", "ADMIN"),
-        2L -> User(2L, "bob_tester", "QA", isActive = false)
+        2L -> User(2L, "bob_tester", "QA", isActive = false),
+        3L -> User(3L, "charlie_admin", "ADMIN", isActive = false),
+        4L -> User(4L, "dave_tester", "QA")
       )))
       repo = UserRepo(initialState)
     yield UserRoutes.make(repo)
@@ -67,39 +69,67 @@ class UserApiSpec extends CatsEffectSuite:
       users <- response.as[List[User]]
 
       _ = assert(users.nonEmpty)
-      _ = assertEquals(users.size, 2)
+      _ = assertEquals(users.size, 4)
       _ = assertEquals(users.head.username, "alice_admin")
     yield ()
   }
 
-  test("GET /api/users should return all users when there is a longer list") {
-    val expectedUsers = List(
-      User(1L, "alice_admin", "ADMIN"),
-      User(2L, "bob_tester", "QA"),
-      User(3L, "charlie_dev", "DEVELOPER"),
-      User(4L, "david_pm", "PRODUCT"),
-      User(5L, "eva_designer", "DESIGN")
-    )
-    val stateMap = expectedUsers.map(u => u.id -> u).toMap
+  test("GET /api/users?isActive=true should return only active users"):
     for
-      initialState <- Ref.of[IO, (Long, Map[Long, User])]((6L, stateMap))
-      repo = UserRepo(initialState)
-      routes = UserRoutes.make(repo)
-      request = Request[IO](Method.GET, uri"/api/users")
+      routes <- testRoutes
+      request = Request[IO](Method.GET, uri"/api/users?isActive=true")
       response <- routes.orNotFound.run(request)
 
       _ = assertEquals(response.status, Status.Ok)
       users <- response.as[List[User]]
 
-      _ = assertEquals(users.length, expectedUsers.length)
-      _ = assertEquals(users.sortBy(_.id), expectedUsers)
+      _ = assertEquals(users.size, 2)
+      _ = assertEquals(users.map(_.username), List("alice_admin", "dave_tester"))
     yield ()
-  }
+
+  test("GET /api/users?role=ADMIN should return only admin users"):
+    for
+      routes <- testRoutes
+      request = Request[IO](Method.GET, uri"/api/users?role=ADMIN")
+      response <- routes.orNotFound.run(request)
+
+      _ = assertEquals(response.status, Status.Ok)
+      users <- response.as[List[User]]
+
+      _ = assertEquals(users.size, 2)
+      _ = assertEquals(users.map(_.username), List("alice_admin", "charlie_admin"))
+    yield ()
+
+  test("GET /api/users?isActive=false&role=QA should filter by multiple parameters"):
+    for
+      routes <- testRoutes
+      request = Request[IO](Method.GET, uri"/api/users?isActive=false&role=QA")
+      response <- routes.orNotFound.run(request)
+
+      _ = assertEquals(response.status, Status.Ok)
+      users <- response.as[List[User]]
+
+      _ = assertEquals(users.size, 1)
+      _ = assertEquals(users.head.username, "bob_tester")
+    yield ()
+
+  test("GET /api/users with take and skip should paginate correctly"):
+    for
+      routes <- testRoutes
+      request = Request[IO](Method.GET, uri"/api/users?take=2&skip=1")
+      response <- routes.orNotFound.run(request)
+
+      _ = assertEquals(response.status, Status.Ok)
+      users <- response.as[List[User]]
+
+      _ = assertEquals(users.size, 2)
+      _ = assertEquals(users.map(_.username), List("bob_tester", "charlie_admin"))
+    yield ()
 
   test("POST /api/users should auto-generate an ID and return the created user") {
     for
       routes <- testRoutes
-      createReq = CreateUserRequest("charlie_dev", "DEVELOPER")
+      createReq = CreateUserRequest("eva_dev", "DEVELOPER")
       request = Request[IO](Method.POST, uri"/api/users")
         .withEntity(createReq.asJson)
 
@@ -108,8 +138,8 @@ class UserApiSpec extends CatsEffectSuite:
       _ = assertEquals(response.status, Status.Ok)
       createdUser <- response.as[User]
 
-      _ = assertEquals(createdUser.id, 3L)
-      _ = assertEquals(createdUser.username, "charlie_dev")
+      _ = assertEquals(createdUser.id, 5L)
+      _ = assertEquals(createdUser.username, "eva_dev")
       _ = assertEquals(createdUser.role, "DEVELOPER")
     yield ()
   }

@@ -1,7 +1,7 @@
 package dev.tcoustic
 package api
 
-import domain.{CreateUserRequest, ErrorMsg, User}
+import domain.{AppError, CreateUserRequest, User}
 
 import sttp.tapir.*
 import sttp.tapir.json.circe.*
@@ -10,36 +10,47 @@ import sttp.model.StatusCode
 import sttp.tapir.generic.auto.*
 
 object UserEndpoints:
-  val getUserEndpoint: PublicEndpoint[Long, (StatusCode, ErrorMsg), User, Any] = endpoint
+
+  private val baseEndpoint = endpoint
+    .errorOut(
+      oneOf[AppError](
+        oneOfVariant(StatusCode.NotFound, jsonBody[AppError.NotFound].description("Resource not found")),
+        oneOfVariant(StatusCode.BadRequest, jsonBody[AppError.BadRequest].description("Invalid request parameters")),
+        oneOfVariant(StatusCode.UnprocessableEntity, jsonBody[AppError.UnprocessableEntity].description("Unable to process the request")),
+      )
+    )
+
+  val getUserEndpoint: PublicEndpoint[Long, AppError, User, Any] = baseEndpoint
     .get
     .in("api" / "users" / path[Long]("id"))
     .out(jsonBody[User])
-    .errorOut(statusCode.and(jsonBody[ErrorMsg]))
     .description("Find user by ID")
 
-  val createUserEndpoint: PublicEndpoint[CreateUserRequest, Unit, User, Any] = endpoint
+  val createUserEndpoint: PublicEndpoint[CreateUserRequest, AppError, User, Any] = baseEndpoint
     .post
     .in("api" / "users")
     .in(jsonBody[CreateUserRequest])
     .out(jsonBody[User])
     .description("Create a new user")
 
-  val listUsersEndpoint: PublicEndpoint[Unit, Unit, List[User], Any] = endpoint
+  val listUsersEndpoint: PublicEndpoint[(Option[Boolean], Option[String], Int, Int), AppError, List[User], Any] = baseEndpoint
     .get
-      .in("api" / "users")
-      .out(jsonBody[List[User]])
-      .description("List all users")
+    .in("api" / "users")
+    .in(query[Option[Boolean]]("isActive"))
+    .in(query[Option[String]]("role"))
+    .in(query[Int]("take").default(10))
+    .in(query[Int]("skip").default(0))
+    .out(jsonBody[List[User]])
+    .description("List all users")
 
-  val deactivateUserEndpoint: PublicEndpoint[Long, (StatusCode, ErrorMsg), User, Any] = endpoint
+  val deactivateUserEndpoint: PublicEndpoint[Long, AppError, User, Any] = baseEndpoint
     .post
     .in("api" / "users" / path[Long]("id") / "deactivate")
     .out(jsonBody[User])
-    .errorOut(statusCode.and(jsonBody[ErrorMsg]))
     .description("Deactivate a user by ID")
 
-  val activateUserEndpoint: PublicEndpoint[Long, (StatusCode, ErrorMsg), User, Any] = endpoint
+  val activateUserEndpoint: PublicEndpoint[Long, AppError, User, Any] = baseEndpoint
     .post
     .in("api" / "users" / path[Long]("id") / "activate")
     .out(jsonBody[User])
-    .errorOut(statusCode.and(jsonBody[ErrorMsg]))
     .description("Activate a user by ID")

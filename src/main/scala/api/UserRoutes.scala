@@ -7,14 +7,16 @@ import org.http4s.HttpRoutes
 import sttp.tapir.server.http4s.Http4sServerInterpreter
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
 import repository.UserRepo
-import domain.ErrorMsg
+import domain.AppError
 
-import sttp.model.StatusCode
 
 object UserRoutes:
 
-  private def notFound(id: Long): Left[(StatusCode, ErrorMsg), Nothing] =
-    Left((StatusCode.NotFound, ErrorMsg(s"User with id $id not found")))
+  private def notFound(id: Long): Left[AppError, Nothing] =
+    Left(AppError.NotFound(s"User with id $id not found"))
+
+  private def unprocessableEntity(msg: String): Left[AppError, Nothing] =
+    Left(AppError.UnprocessableEntity(msg))
     
   def make(repo: UserRepo): HttpRoutes[IO] =
     val getUserRoute = UserEndpoints.getUserEndpoint.serverLogic { id =>
@@ -24,8 +26,8 @@ object UserRoutes:
       }
     }
 
-    val listUsersRoute = UserEndpoints.listUsersEndpoint.serverLogic { _ =>
-      repo.listAll().map(Right(_))
+    val listUsersRoute = UserEndpoints.listUsersEndpoint.serverLogic { case (isActive, role, take, skip) =>
+      repo.listAll(isActive, role, take, skip).map(Right(_))
     }
 
     val createUserRoute = UserEndpoints.createUserEndpoint.serverLogic { req =>
@@ -35,7 +37,7 @@ object UserRoutes:
     val deactivateUserRoute = UserEndpoints.deactivateUserEndpoint.serverLogic { id =>
       repo.deactivate(id).map {
         case UserRepo.DeactivationResult.UserDeactivated(user) => Right(user)
-        case UserRepo.DeactivationResult.UserAlreadyInactive => Left((StatusCode.UnprocessableEntity, ErrorMsg(s"User with id $id already inactive")))
+        case UserRepo.DeactivationResult.UserAlreadyInactive => unprocessableEntity(s"User with id $id already inactive")
         case UserRepo.DeactivationResult.UserNotFound => notFound(id)
       }
     }
@@ -43,7 +45,7 @@ object UserRoutes:
     val activateUserRoute = UserEndpoints.activateUserEndpoint.serverLogic { id =>
       repo.activate(id).map {
         case UserRepo.ActivationResult.UserActivated(user) => Right(user)
-        case UserRepo.ActivationResult.UserAlreadyActive => Left((StatusCode.UnprocessableEntity, ErrorMsg(s"User with id $id already active")))
+        case UserRepo.ActivationResult.UserAlreadyActive => unprocessableEntity(s"User with id $id already active")
         case UserRepo.ActivationResult.UserNotFound => notFound(id)
       }
     }
